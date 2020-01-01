@@ -16,46 +16,13 @@ const server = http.createServer(function (request, response) {
   const path = parsedUrl.pathname
   const query = parsedUrl.query
   const method = request.method
-  const filePath = path === '/' ? '/index.html' : path
+  const filePath = path === '/' ? '/home.html' : path
   const session = JSON.parse(fs.readFileSync('./session.json').toString())
 
   console.log('超哥说：含查询字符串的路径\n' + pathWithQuery);
 
-  // 登录
-  if (path === '/signIn' && method === 'POST') {
-    const arr = []
-    const userArray = JSON.parse(fs.readFileSync('./db/user.json').toString())
-    response.setHeader('Content-Type', 'text/html;charset=utf-8')
-    // 监听请求数据
-    request.on('data', (chunk) => {
-      // chunk 是块的意思，代表数据时一段一段上传
-      arr.push(chunk)
-    })
-    // 监听数据完成
-    request.on('end', () => {
-      const string = Buffer.concat(arr).toString()
-      const { name, password } = JSON.parse(string)
-      const user = userArray.find((item) => item.name === name && item.password === password)
-      if (!user) {
-        response.statusCode = 400
-        response.setHeader('Content-Type', 'text/json; charset=utf-8')
-        response.end('{"errCode": "4001"}')
-      } else {
-        response.statusCode = 200
-        // 登录成功之后设置Cookie HttpOnly 是禁止前端修改Cookie
-        // response.setHeader('Set-Cookie', `userId=${user.id}; HttpOnly`)
-
-        // 更加方便的方式则是模拟Session
-        const random = Math.random()
-        session[random] = { userId: user.id }
-        fs.writeFileSync('./session.json', JSON.stringify(session))
-        response.setHeader('Set-Cookie', `sessionId=${random}; HttpOnly`)
-        response.end('成功')
-      }
-    })
-  }
   // 注册 
-  else if (path === '/register' && method === 'POST') {
+  if (path === '/register' && method === 'POST') {
     const arr = []
     const userArray = JSON.parse(fs.readFileSync('./db/user.json').toString())
     response.setHeader('Content-Type', 'text/html;charset=utf-8')
@@ -79,8 +46,36 @@ const server = http.createServer(function (request, response) {
       fs.writeFileSync('./db/user.json', JSON.stringify(userArray))
       response.end('成功')
     })
-  }
-  else if (path === '/home.html') {
+  } else if (path === '/signIn' && method === 'POST') {
+    const arr = []
+    const userArray = JSON.parse(fs.readFileSync('./db/user.json').toString())
+    response.setHeader('Content-Type', 'text/html;charset=utf-8')
+    // 监听请求数据
+    request.on('data', (chunk) => {
+      // chunk 是块的意思，代表数据时一段一段上传
+      arr.push(chunk)
+    })
+    // 监听数据完成
+    request.on('end', () => {
+      const string = Buffer.concat(arr).toString()
+      const { name, password } = JSON.parse(string)
+      const user = userArray.find((item) => item.name === name && item.password === password)
+      if (!user) {
+        response.statusCode = 400
+        response.setHeader('Content-Type', 'text/json; charset=utf-8')
+        response.end('{"errCode": "4001"}')
+      } else {
+        response.statusCode = 200
+
+        // 模拟随机数防止篡改
+        const random = Math.random()
+        session[random] = { userId: user.id }
+        fs.writeFileSync('./session.json', JSON.stringify(session))
+        response.setHeader('Set-Cookie', `sessionId=${random}; HttpOnly`)
+        response.end('成功')
+      }
+    })
+  } else if (path === '/home.html') {
     response.statusCode = 200
     const cookie = request.headers['cookie']
     let sessionId
@@ -91,6 +86,7 @@ const server = http.createServer(function (request, response) {
     }
     if (sessionId && session[sessionId]) {
       const users = JSON.parse(fs.readFileSync('./db/user.json').toString())
+      // 通过浏览器获取到的随机数对比session.json 中的数据，从而获取到真正的userId
       const user = users.find(item => item.id * 1 === session[sessionId].userId * 1)
       const homeHtml = fs.readFileSync('./public/home.html').toString()
       let string
@@ -107,8 +103,7 @@ const server = http.createServer(function (request, response) {
       response.write(string)
     }
     response.end()
-  }
-  else {
+  } else {
     response.statusCode = 200;
     const index = filePath.lastIndexOf('.')
     // 获取后缀
@@ -124,7 +119,7 @@ const server = http.createServer(function (request, response) {
     response.setHeader('Content-Type', `${types[suffix]}; charset=utf-8`);
     let content
     try {
-      content = fs.readFileSync(`./public${path}`)
+      content = fs.readFileSync(`./public${filePath}`)
     } catch (err) {
       content = '您所访问的路径不存在'
       response.statusCode = 404
